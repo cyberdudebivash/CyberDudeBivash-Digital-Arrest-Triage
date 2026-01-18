@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from .models import Base, User, Report
@@ -16,6 +18,9 @@ import os
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CyberDudeBivash Digital Arrest Triage Script", version="1.0.0")
+
+# Mount static files for landing page assets (if you add CSS/JS later)
+app.mount("/static", StaticFiles(directory="public"), name="static")
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -37,9 +42,18 @@ class TriageOut(BaseModel):
     advice: str
     report_id: int
 
+@app.get("/", response_class=HTMLResponse)
+async def landing_page():
+    """Serve the main landing page at root URL"""
+    try:
+        with open("public/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "<h1>Landing page not found - please add public/index.html</h1>"
+
 @app.post("/register")
 def register(user: UserIn, db: Session = Depends(get_db)):
-    print(f"[DEBUG] Register attempt started - username: '{user.username}', password length: {len(user.password)} chars")
+    print(f"[DEBUG] Register attempt - username: '{user.username}', password length: {len(user.password)} chars")
     try:
         hashed_password = get_password_hash(user.password)
         print("[DEBUG] Password hashed successfully")
@@ -74,7 +88,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.post("/triage", response_model=TriageOut)
 def perform_triage(input: TriageIn, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    print("[DEBUG] Triage request received")
+    print(f"[DEBUG] Triage request - transcript length: {len(input.transcript)} chars, language: {input.language}")
     user = verify_token(token, db)
     sanitized = sanitize_input(input.transcript)
     indicators = triage_digital_arrest(sanitized, input.url, input.image_url, input.language)
@@ -85,7 +99,7 @@ def perform_triage(input: TriageIn, token: str = Depends(oauth2_scheme), db: Ses
         db.add(report)
         db.commit()
         db.refresh(report)
-        print("[DEBUG] Triage report saved successfully")
+        print(f"[DEBUG] Triage report saved - ID: {report.id}")
     except Exception as e:
         db.rollback()
         print(f"[ERROR] Failed to save report: {str(e)}")
@@ -100,6 +114,7 @@ def perform_triage(input: TriageIn, token: str = Depends(oauth2_scheme), db: Ses
 
 @app.get("/health")
 def health():
+    print("[DEBUG] Health check requested")
     return {"status": "healthy", "authority": "CyberDudeBivash™"}
 
 print("[INFO] Application loaded successfully")
