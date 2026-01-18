@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/triage.db
+      - SECRET_KEY=cyberdudebivash_secret_2026
+    volumes:
+      - db_data:/app  # Named volume – maps whole /app dir (includes triage.db)
+
+volumes:
+  db_data:  # Docker creates & manages this automatically
+
+# © 2026 CyberDudeBivash Pvt. Ltd.
